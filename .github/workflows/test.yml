@@ -1,0 +1,230 @@
+name: flexible-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository_url:
+        description: 'Repository URL (e.g., https://github.com/username/repo.git)'
+        required: true
+        type: string
+      branch:
+        description: 'Select branch to build (default: master)'
+        required: false
+        default: 'master'
+        type: string
+      
+      # Environment setup inputs
+      setup_jdk:
+        description: 'Setup JDK (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+      jdk_version:
+        description: 'JDK Version (if JDK enabled)'
+        required: false
+        default: '17'
+        type: string
+      jdk_distribution:
+        description: 'JDK Distribution (if JDK enabled)'
+        required: false
+        default: 'temurin'
+        type: string
+      
+      setup_dotnet:
+        description: 'Setup .NET (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+      dotnet_version:
+        description: '.NET Version (if .NET enabled)'
+        required: false
+        default: '8.0.x'
+        type: string
+      
+      setup_cmake:
+        description: 'Setup CMake (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+      cmake_version:
+        description: 'CMake Version (if CMake enabled)'
+        required: false
+        default: '3.25'
+        type: string
+      
+      setup_node:
+        description: 'Setup Node.js (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+      node_version:
+        description: 'Node.js Version (if Node enabled)'
+        required: false
+        default: '18'
+        type: string
+      
+      # Custom environment packages
+      apt_packages:
+        description: 'Additional apt packages (space-separated)'
+        required: false
+        type: string
+      
+      # Build commands
+      build_commands:
+        description: 'Build commands (use && to chain multiple commands)'
+        required: true
+        type: string
+        default: 'echo "No build commands specified"'
+      
+      # Artifact settings
+      artifact_pattern:
+        description: 'Artifact file pattern (e.g., "*.apk", "build/outputs/**/*")'
+        required: false
+        default: '**/*'
+        type: string
+      
+      # External upload options
+      upload_to_external:
+        description: 'Upload to external location (true/false)'
+        required: false
+        default: 'false'
+        type: boolean
+      upload_type:
+        description: 'Upload type (ftp, s3, dropbox, telegram)'
+        required: false
+        default: 'ftp'
+        type: choice
+        options:
+          - ftp
+          - s3
+          - dropbox
+          - telegram
+      
+      # External upload credentials (consider using secrets instead)
+      upload_url:
+        description: 'Upload URL/Endpoint'
+        required: false
+        type: string
+      upload_credentials:
+        description: 'Upload credentials (format depends on type)'
+        required: false
+        type: string
+
+jobs:
+  flexible_build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+      
+      # Conditional JDK setup
+      - name: Setup JDK
+        if: ${{ github.event.inputs.setup_jdk == 'true' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: ${{ github.event.inputs.jdk_distribution }}
+          java-version: ${{ github.event.inputs.jdk_version }}
+      
+      # Conditional .NET setup
+      - name: Setup .NET
+        if: ${{ github.event.inputs.setup_dotnet == 'true' }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ github.event.inputs.dotnet_version }}
+      
+      # Conditional CMake setup
+      - name: Setup CMake
+        if: ${{ github.event.inputs.setup_cmake == 'true' }}
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: ${{ github.event.inputs.cmake_version }}
+      
+      # Conditional Node.js setup
+      - name: Setup Node.js
+        if: ${{ github.event.inputs.setup_node == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ github.event.inputs.node_version }}
+      
+      # Download source code
+      - name: Download source code
+        run: |
+          cd ${{ github.workspace }}
+          REPO_NAME=$(basename "${{ github.event.inputs.repository_url }}" .git)
+          echo "Repository name: $REPO_NAME"
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+          
+          git clone --branch ${{ github.event.inputs.branch }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@$(echo "${{ github.event.inputs.repository_url }}" | sed 's|https://||') --recursive
+          cd "$REPO_NAME"
+      
+      # Prepare environment with custom packages
+      - name: Prepare environment
+        if: ${{ github.event.inputs.apt_packages != '' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ github.event.inputs.apt_packages }}
+      
+      # Custom build commands
+      - name: Build project
+        run: |
+          cd ${{ github.workspace }}/${{ env.REPO_NAME }}/
+          ${{ github.event.inputs.build_commands }}
+      
+      # Upload to GitHub Actions (always available)
+      - name: Upload artifact to Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ env.REPO_NAME }}-${{ github.run_number }}
+          path: |
+            ${{ github.workspace }}/${{ env.REPO_NAME }}/${{ github.event.inputs.artifact_pattern }}
+      
+      # External uploads (conditional)
+      - name: Upload to FTP
+        if: ${{ github.event.inputs.upload_to_external == 'true' && github.event.inputs.upload_type == 'ftp' }}
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ github.event.inputs.upload_url }}
+          username: ${{ github.event.inputs.upload_credentials }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ${{ github.workspace }}/${{ env.REPO_NAME }}/
+      
+      - name: Upload to AWS S3
+        if: ${{ github.event.inputs.upload_to_external == 'true' && github.event.inputs.upload_type == 's3' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Sync to S3
+        if: ${{ github.event.inputs.upload_to_external == 'true' && github.event.inputs.upload_type == 's3' }}
+        run: |
+          aws s3 sync ${{ github.workspace }}/${{ env.REPO_NAME }}/ s3://${{ github.event.inputs.upload_url }}/ --exclude "*" --include "${{ github.event.inputs.artifact_pattern }}"
+      
+      - name: Upload to Telegram
+        if: ${{ github.event.inputs.upload_to_external == 'true' && github.event.inputs.upload_type == 'telegram' }}
+        run: |
+          # Find files matching the pattern
+          find ${{ github.workspace }}/${{ env.REPO_NAME }}/ -name "${{ github.event.inputs.artifact_pattern }}" -type f | while read file; do
+            curl -F document=@"$file" \
+                 -F chat_id="${{ github.event.inputs.upload_url }}" \
+                 https://api.telegram.org/bot${{ github.event.inputs.upload_credentials }}/sendDocument
+          done
+      
+      - name: Upload to Dropbox
+        if: ${{ github.event.inputs.upload_to_external == 'true' && github.event.inputs.upload_type == 'dropbox' }}
+        run: |
+          # Install dropbox uploader
+          curl "https://raw.githubusercontent.com/andreafabrizi/Dropbox-Uploader/master/dropbox_uploader.sh" -o dropbox_uploader.sh
+          chmod +x dropbox_uploader.sh
+          
+          # Configure dropbox (requires DROPBOX_TOKEN in secrets)
+          echo "OAUTH_ACCESS_TOKEN=${{ secrets.DROPBOX_TOKEN }}" > ~/.dropbox_uploader
+          
+          # Upload files
+          find ${{ github.workspace }}/${{ env.REPO_NAME }}/ -name "${{ github.event.inputs.artifact_pattern }}" -type f | while read file; do
+            ./dropbox_uploader.sh upload "$file" "${{ github.event.inputs.upload_url }}/$(basename "$file")"
+          done
