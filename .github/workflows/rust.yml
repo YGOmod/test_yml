@@ -36,9 +36,11 @@ jobs:
         with:
           dotnet-version: '9.0.100'
       
+      - name: List folder contents
+        run: ls -la Rust
+      
       - name: Restore .NET Dependencies
-        run: dotnet restore
-        working-directory: Rust
+        run: dotnet restore Rust/Ryujinx.sln
       
       - name: Build the Android project
         run: |
