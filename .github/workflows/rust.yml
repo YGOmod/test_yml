@@ -36,15 +36,12 @@ jobs:
         with:
           dotnet-version: '9.0.100'
       
-      - name: List folder contents
-        run: ls -la Rust
-      
       - name: Restore .NET Dependencies
         run: dotnet restore Rust/Ryujinx.sln
       
       - name: Build the Android project
         run: |
-          cd src/RyujinxAndroid
+          cd Rust/src/RyujinxAndroid
           chmod +x gradlew
           ./gradlew clean
           ./gradlew --stacktrace assembleRelease
@@ -53,5 +50,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: |
-            ${{ github.workspace }}/src/RyujinxAndroid/app/build/outputs/apk/release/*.apk
+          path: Rust/src/RyujinxAndroid/app/build/outputs/apk/release/*.apk
