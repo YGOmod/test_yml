@@ -1,0 +1,54 @@
+name: Build Rust
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'select branch to build (default: main)'
+        required: false
+        default: 'main'
+
+jobs:
+  rust_android_build:
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+      
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      
+      - name: Download source code
+        run: |
+          cd ${{ github.workspace }}
+          git clone --branch ${{ github.event.inputs.branch || 'main' }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/YGOmod/Rust.git --recursive
+          cd Rust
+
+      - name: Download .NET SDK 9.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.100'
+      
+      - name: Restore .NET Dependencies
+        run: dotnet restore
+      
+      - name: Build the Android project
+        run: |
+          cd src/RyujinxAndroid
+          chmod +x gradlew
+          ./gradlew clean
+          ./gradlew --stacktrace assembleRelease
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: |
+            ${{ github.workspace }}/Rust/app/build/outputs/apk/release/*.apk
