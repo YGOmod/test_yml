@@ -8,9 +8,12 @@ on:
         required: false
         default: 'main'
 
+env:
+  NDK_VERSION: "26.1.10909125"
+  ANDROID_API_LEVEL: "21"
+
 jobs:
   rust_android_build:
-
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
@@ -31,6 +34,14 @@ jobs:
           git clone --branch ${{ github.event.inputs.branch || 'main' }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/YGOmod/Rust.git --recursive
           cd Rust
 
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r26d
+          link-to-sdk: true
+          add-to-path: true
+      
       - name: Download .NET SDK 9.0
         uses: actions/setup-dotnet@v4
         with:
@@ -39,6 +50,36 @@ jobs:
       - name: Restore .NET Dependencies
         run: dotnet restore Rust/Ryujinx.sln
       
+      - name: Set Android environment variables
+        run: |
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+      
+      - name: Configure Android NDK toolchain
+        run: |
+          NDK_PATH="${{ steps.setup-ndk.outputs.ndk-path }}"
+          TOOLCHAIN_PATH="$NDK_PATH/toolchains/llvm/prebuilt/linux-x86_64"
+          SYSROOT="$TOOLCHAIN_PATH/sysroot"
+          
+          echo "NDK_PATH=$NDK_PATH" >> $GITHUB_ENV
+          echo "TOOLCHAIN_PATH=$TOOLCHAIN_PATH" >> $GITHUB_ENV
+          echo "CC=$TOOLCHAIN_PATH/bin/aarch64-linux-android${{ env.ANDROID_API_LEVEL }}-clang" >> $GITHUB_ENV
+          echo "CXX=$TOOLCHAIN_PATH/bin/aarch64-linux-android${{ env.ANDROID_API_LEVEL }}-clang++" >> $GITHUB_ENV
+          echo "AR=$TOOLCHAIN_PATH/bin/llvm-ar" >> $GITHUB_ENV
+          echo "STRIP=$TOOLCHAIN_PATH/bin/llvm-strip" >> $GITHUB_ENV
+          echo "RANLIB=$TOOLCHAIN_PATH/bin/llvm-ranlib" >> $GITHUB_ENV
+          echo "SYSROOT=$SYSROOT" >> $GITHUB_ENV
+          echo "$TOOLCHAIN_PATH/bin" >> $GITHUB_PATH
+          
+          # Verify NDK installation
+          echo "Verifying NDK installation..."
+          ls -la "$TOOLCHAIN_PATH/bin/" | head -5
+          ls -la "$SYSROOT/usr/lib/aarch64-linux-android/${{ env.ANDROID_API_LEVEL }}/" | head -5
+
       - name: Build the Android project
         run: |
           cd Rust/src/RyujinxAndroid
