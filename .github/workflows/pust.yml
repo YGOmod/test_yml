@@ -1,0 +1,66 @@
+name: pust-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'select branch to build (default: master)'
+        required: false
+        default: 'master'
+
+jobs:
+  pust_android_build:
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+      
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      
+      - name: Download source code
+        run: |
+          cd ${{ github.workspace }}
+          git clone --branch ${{ github.event.inputs.branch || 'master' }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/YGOmod/PCSX2_ARM64.git --recursive
+          cd PCSX2_ARM64
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+      
+      - name: Prepare environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install ccache autoconf cmake g++-11 gcc-11 curl clang-15 freeglut3-dev git libgcrypt20-dev libglm-dev libgtk-3-dev libpulse-dev libsecret-1-dev libsystemd-dev libtool nasm ninja-build appstream libbluetooth-dev
+    
+      - name: Build Android
+        run: |
+          export NDK_CCACHE="$(which ccache)"
+          export CCACHE_DIR="${{ github.workspace }}/.ccache"
+          ccache -sv
+          cd ${{ github.workspace }}/PCSX2_ARM64/
+          chmod +x ./gradlew
+          ./gradlew clean
+          ./gradlew "assembleRelease" --stacktrace --info
+        env:
+          ANDROID_STORE_FILE_BASE64: ${{ secrets.ANDROID_STORE_FILE_BASE64 }}
+          ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcsx2-android
+          path: |
+            ${{ github.workspace }}/PCSX2_ARM64/app/build/outputs/apk/release/*.apk 
