@@ -42,7 +42,7 @@ jobs:
       - name: Prepare environment
         run: |
           sudo apt-get update
-          sudo apt-get install ccache autoconf cmake g++-11 gcc-11 curl clang-15 freeglut3-dev git libgcrypt20-dev libglm-dev libgtk-3-dev libpulse-dev libsecret-1-dev libsystemd-dev libtool nasm ninja-build appstream libbluetooth-dev
+          sudo apt-get install ccache autoconf cmake curl clang-15 git libgcrypt20-dev libglm-dev libtool nasm ninja-build
     
       - name: Build Android
         run: |
