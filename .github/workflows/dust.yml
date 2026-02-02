@@ -1,0 +1,66 @@
+name: dust-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'select branch to build (default: main)'
+        required: false
+        default: 'main'
+
+jobs:
+  dust_android_build:
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+      
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      
+      - name: Download source code
+        run: |
+          cd ${{ github.workspace }}
+          git clone --branch ${{ github.event.inputs.branch || 'main' }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/YGOmod/Dust.git --recursive
+          cd Dust
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+      
+      - name: Prepare environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install ccache glslang-dev glslang-tools
+    
+      - name: Build Android
+        run: |
+          export NDK_CCACHE="$(which ccache)"
+          export CCACHE_DIR="${{ github.workspace }}/.ccache"
+          ccache -sv
+          cd ${{ github.workspace }}/Dust/
+          chmod +x ./gradlew
+          ./gradlew clean
+          ./gradlew "assembleRelease" --stacktrace --info
+        env:
+          ANDROID_STORE_FILE_BASE64: ${{ secrets.ANDROID_STORE_FILE_BASE64 }}
+          ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dust-android
+          path: |
+            ${{ github.workspace }}/Dust/app/build/outputs/apk/release/*.apk
