@@ -63,4 +63,4 @@ jobs:
         with:
           name: dust-android
           path: |
-            ${{ github.workspace }}/Dust/app/build/outputs/apk/release/*.apk
+            ${{ github.workspace }}/Dust/src/android/app/build/outputs/apk/release/*.apk
