@@ -49,7 +49,7 @@ jobs:
           export NDK_CCACHE="$(which ccache)"
           export CCACHE_DIR="${{ github.workspace }}/.ccache"
           ccache -sv
-          cd ${{ github.workspace }}/Dust/
+          cd ${{ github.workspace }}/Dust/src/android/
           chmod +x ./gradlew
           ./gradlew clean
           ./gradlew "assembleRelease" --stacktrace --info
