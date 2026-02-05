@@ -58,6 +58,13 @@ jobs:
           ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
 
+      - name: Debug APK location
+        run: |
+          cd ${{ github.workspace }}/Dust/src/android/
+          pwd
+          echo "Listing any *.apk under android project:"
+          find . -type f -name "*.apk" -print || echo "NO APK FOUND" 
+      
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
