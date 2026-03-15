@@ -1,0 +1,66 @@
+name: iust-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'select branch to build (default: main)'
+        required: false
+        default: 'main'
+
+jobs:
+  iust_android_build:
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v5
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+      
+      - name: Setup JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      
+      - name: Download source code
+        run: |
+          cd ${{ github.workspace }}
+          git clone --branch ${{ github.event.inputs.branch || 'main' }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/YGOmod/Iris-Android.git --recursive
+          cd Iris-Android
+
+      - name: Cache ccache
+        uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+      
+      - name: Prepare environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install ccache autoconf cmake curl clang-15 git libgcrypt20-dev libglm-dev libtool nasm ninja-build
+    
+      - name: Build Android
+        run: |
+          export NDK_CCACHE="$(which ccache)"
+          export CCACHE_DIR="${{ github.workspace }}/.ccache"
+          ccache -sv
+          cd ${{ github.workspace }}/Iris-Android/android/
+          chmod +x ./gradlew
+          ./gradlew clean
+          ./gradlew "assembleRelease" --stacktrace --info
+        env:
+          ANDROID_STORE_FILE_BASE64: ${{ secrets.ANDROID_STORE_FILE_BASE64 }}
+          ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: iris-android-${{ github.event.inputs.branch }}
+          path: |
+            ${{ github.workspace }}/Iris-Android/android/app/build/outputs/apk/release/*.apk  
