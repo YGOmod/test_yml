@@ -80,18 +80,21 @@ jobs:
           ls -la "$TOOLCHAIN_PATH/bin/" | head -5
           ls -la "$SYSROOT/usr/lib/aarch64-linux-android/${{ env.ANDROID_API_LEVEL }}/" | head -5
 
-      - name: Setup Android problem matchers
-        uses: jonasb/android-problem-matchers-action@v1
-      
       - name: Build the Android project
         run: |
           cd Rust/src/RyujinxAndroid
           chmod +x gradlew
           ./gradlew clean
-          ./gradlew --stacktrace assembleRelease
+          ./gradlew --no-daemon --parallel --stacktrace assembleRelease assembleDebug
 
-      - name: Upload artifact
+      - name: Upload Release artifact
         uses: actions/upload-artifact@v4
         with:
           name: app-release
           path: Rust/src/RyujinxAndroid/app/build/outputs/apk/release/*.apk
+
+      - name: Upload Debug artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug
+          path: Rust/src/RyujinxAndroid/app/build/outputs/apk/debug/*.apk
