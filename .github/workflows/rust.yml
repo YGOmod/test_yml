@@ -7,6 +7,10 @@ on:
         description: 'select branch to build (default: main)'
         required: false
         default: 'main'
+      hash:
+        description: 'Commit hash to checkout (optional, overrides branch tip)'
+        required: false
+        default: ''
 
 env:
   NDK_VERSION: "26.1.10909125"
@@ -17,13 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: "recursive"
           fetch-depth: 0
       
       - name: Setup JDK
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 17
@@ -33,6 +37,12 @@ jobs:
           cd ${{ github.workspace }}
           git clone --branch ${{ github.event.inputs.branch || 'main' }} https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/YGOmod/Rust.git --recursive
           cd Rust
+          # If a specific hash was provided, check it out
+          if [ -n "${{ github.event.inputs.hash }}" ]; then
+            git fetch --all
+            git checkout ${{ github.event.inputs.hash }}
+            git submodule update --init --recursive
+          fi
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -43,7 +53,7 @@ jobs:
           add-to-path: true
       
       - name: Download .NET SDK 9.0
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '9.0.100'
       
@@ -85,16 +95,16 @@ jobs:
           cd Rust/src/RyujinxAndroid
           chmod +x gradlew
           ./gradlew clean
-          ./gradlew --no-daemon --parallel --stacktrace assembleRelease assembleDebug
+          ./gradlew --no-daemon --parallel --stacktrace assemble
 
       - name: Upload Release artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: app-release
           path: Rust/src/RyujinxAndroid/app/build/outputs/apk/release/*.apk
 
       - name: Upload Debug artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: app-debug
           path: Rust/src/RyujinxAndroid/app/build/outputs/apk/debug/*.apk
