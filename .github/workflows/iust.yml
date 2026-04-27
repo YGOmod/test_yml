@@ -57,14 +57,21 @@ jobs:
           cd ${{ github.workspace }}/Iris-Android/android/
           chmod +x ./gradlew
           ./gradlew clean
-          ./gradlew "assembleRelease" --stacktrace --info
+          ./gradlew "assemble" --stacktrace --info
         env:
           ANDROID_STORE_FILE_BASE64: ${{ secrets.ANDROID_STORE_FILE_BASE64 }}
           ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v5
+      - name: Upload Debug artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: iris-android-${{ github.event.inputs.branch }}
+          path: |
+            ${{ github.workspace }}/Iris-Android/android/app/build/outputs/apk/debug/*.apk 
+      
+      - name: Upload Release artifact
+        uses: actions/upload-artifact@v6
         with:
           name: iris-android-${{ github.event.inputs.branch }}
           path: |
